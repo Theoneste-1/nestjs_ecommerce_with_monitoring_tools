@@ -1,4 +1,4 @@
-import { Controller, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Logger, HttpException, HttpStatus , Inject} from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -27,19 +27,19 @@ export class OrderController {
       this.logger.log({ message: `Creating order for cart: ${cartId}`, userId: user.userId, role: user.role });
 
       // Validate user
-      const userData = await firstValueFrom(this.orderService.validateUser(user.userId));
+      const userData = await firstValueFrom( await this.orderService.validateUser(user.userId));
       if (!userData) {
         throw new HttpException('Invalid user', HttpStatus.BAD_REQUEST);
       }
 
       // Fetch cart via TCP (from Cart Service)
-      const cart = await firstValueFrom(this.orderService.getCart(cartId, user));
-      if (!cart || !cart.items.length) {
+      const cart = await firstValueFrom( await this.orderService.getCart(cartId, user)) as Order;
+      if (!cart || cart.items.length === 0) {
         throw new HttpException('Cart is empty or not found', HttpStatus.BAD_REQUEST);
       }
 
       // Validate products and reserve inventory
-      const orderItems = [];
+      const orderItems: OrderItem[] = [];
       let totalAmount = 0;
       for (const item of cart.items) {
         const product = await firstValueFrom(this.productClient.send({ cmd: 'products.get' }, { id: item.productId, user }));
@@ -50,13 +50,16 @@ export class OrderController {
         if (!success) {
           throw new HttpException(`Insufficient stock for product: ${item.productId}`, HttpStatus.BAD_REQUEST);
         }
-        orderItems.push(
-          this.orderItemRepository.create({
+
+        const orderItem_new = await this.orderItemRepository.create({
             productId: item.productId,
             quantity: item.quantity,
             price: product.price,
             total: item.quantity * product.price,
-          }),
+          })
+
+        orderItems.push(
+          orderItem_new
         );
         totalAmount += item.quantity * product.price;
       }

@@ -2,6 +2,12 @@ import { Module } from '@nestjs/common';
 
 import { Payment } from './entities/payment.entity';
 import { PaymentController } from './payment.controller';
+import {TypeOrmModule} from '@nestjs/typeorm';
+import {ClientsModule, Transport} from '@nestjs/microservices';
+import { PaymentEventsController } from './payment.event.controller';
+import { PaymentService } from './payment.service';
+
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -13,15 +19,7 @@ import { PaymentController } from './payment.controller';
     TypeOrmModule.forFeature([Payment]),
     ClientsModule.register([
       { name: 'ORDER_SERVICE', transport: Transport.TCP, options: { host: 'order-service', port: 3005 } },
-      {
-        name: 'RABBITMQ_CLIENT',
-        transport: Transport.RMQ,
-        options: {
-          urls: [process.env.RABBITMQ_URL],
-          queue: 'ecommerce_queue',
-          queueOptions: { durable: true },
-        },
-      },
+    
     ]),
   ],
   controllers: [PaymentController, PaymentEventsController],

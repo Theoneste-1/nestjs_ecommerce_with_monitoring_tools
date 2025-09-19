@@ -1,12 +1,12 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Inject, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Order, OrderStatus } from './entities/order.entity';
-import { OrderItem } from './entities/order-item.entity';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import { OrderService } from './order.service';
+import { Order, OrderStatus } from '../entities/order.entity';
+import { OrderItem } from '../entities/order-item.entity';
+import { OrderService } from '../order.service';
 
 @Controller()
 export class OrderEventsController {
@@ -30,20 +30,20 @@ export class OrderEventsController {
         return;
       }
 
-      const user = await firstValueFrom(this.orderService.validateUser(data.userId));
+      const user = await firstValueFrom(await this.orderService.validateUser(data.userId));
       if (!user) {
         this.logger.warn({ message: `Invalid user for cart: ${data.cartId}` });
         return;
       }
 
-      const cart = await firstValueFrom(this.orderService.getCart(data.cartId, { userId: data.userId, role: 'CLIENT' }));
+      const cart = await firstValueFrom( await this.orderService.getCart(data.cartId, { userId: data.userId, role: 'CLIENT' })) as Order;
       if (!cart || !cart.items.length) {
         this.logger.warn({ message: `Empty or invalid cart: ${data.cartId}` });
         return;
       }
 
       // Create order from abandoned cart
-      const orderItems = [];
+      const orderItems:OrderItem[] = [];
       let totalAmount = 0;
       for (const item of cart.items) {
         const product = await firstValueFrom(this.productClient.send({ cmd: 'products.get' }, { id: item.productId, user: { userId: data.userId, role: 'CLIENT' } }));

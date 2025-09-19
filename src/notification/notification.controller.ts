@@ -1,7 +1,7 @@
 import { Controller, Get, Put, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
-import { NotificationService } from './notification.service';
-import { Roles } from './decorators/roles.decorator';
-import { RolesGuard } from './guards/roles.guard';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { NotificationService } from './notifications.service';
 
 @Controller('notifications')
 export class NotificationController {

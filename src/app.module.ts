@@ -12,6 +12,10 @@ import { AppService } from './app.service';
 import { OpenTelemetryModule } from 'nestjs-otel';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { AuthModule } from './auth/auth.module';
+import { ProductController } from './product/product-1.controller';
+import { CategoryController } from './product/category.controller';
+import { CategoryService } from './product/category.service';
+import { ProductService } from './product/product.service';
 
 @Module({
   imports: [
@@ -89,9 +93,11 @@ import { AuthModule } from './auth/auth.module';
     ]),
     HttpModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, ProductController, CategoryController],
   providers: [
     AppService,
+    CategoryService,
+    ProductService,
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,

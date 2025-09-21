@@ -5,11 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { HttpModule } from '@nestjs/axios';
 import { CategoryModule } from 'src/category/category.module';
-import { ProductModule } from './product/product.module';
 import { Product } from './product/entities/product.entity';
 import { Category } from './product/entities/category.entity';
 @Module({
   imports: [
+    TypeOrmModule.forFeature([
+      Product,
+      Category
+    ]),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -37,7 +40,6 @@ import { Category } from './product/entities/category.entity';
         },
       },
     }),
-    ProductModule,
     CategoryModule,
   ],
 })

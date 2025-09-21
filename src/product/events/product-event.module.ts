@@ -2,7 +2,8 @@
 // services/product-service/src/events/events.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { EventsService } from './events.service';
+import { EventsService } from './product-events.service';
+
 
 @Module({
   imports: [ConfigModule],

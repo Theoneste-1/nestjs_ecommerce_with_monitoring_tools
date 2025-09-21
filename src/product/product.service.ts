@@ -50,7 +50,7 @@ export class ProductService {
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
 
-    private readonly eventsService: any
+    // private readonly eventsService: any
   ) {}
 
   async create(
@@ -85,14 +85,14 @@ export class ProductService {
       const savedProduct = await this.productRepository.save(product);
 
       // Emit event
-      await this.eventsService.emitProductCreated({
-        productId: savedProduct.id,
-        sellerId,
-        categoryId: savedProduct.categoryId,
-        name: savedProduct.name,
-        price: savedProduct.price,
-        sku: savedProduct.sku,
-      });
+      // await this.eventsService.emitProductCreated({
+      //   productId: savedProduct.id,
+      //   sellerId,
+      //   categoryId: savedProduct.categoryId,
+      //   name: savedProduct.name,
+      //   price: savedProduct.price,
+      //   sku: savedProduct.sku,
+      // });
 
       this.logger.log(`Product created successfully: ${savedProduct.name}`, {
         productId: savedProduct.id,

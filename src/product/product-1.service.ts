@@ -1,4 +1,3 @@
-// services/product-service/src/product/product.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -10,13 +9,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, ILike, In } from 'typeorm';
-import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import { Product } from './entities/product.entity';
 import { Category } from './entities/category.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
-import { Histogram } from 'perf_hooks';
 import { MessagePattern } from '@nestjs/microservices';
 
 export interface ProductQueryOptions {
@@ -49,15 +46,14 @@ export class ProductService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
-
-    // private readonly eventsService: any
   ) {}
 
-  async create(
-    createProductDto: CreateProductDto,
-    sellerId: string,
-  ): Promise<Product> {
+  @MessagePattern({ cmd: 'products.create' })
+  async createProduct(data: { data: CreateProductDto; user: { userId: string; role: string } }) {
     try {
+      const { data: createProductDto, user } = data;
+      this.logger.log({ message: 'Creating product', userId: user.userId, role: user.role });
+
       // Check if SKU already exists
       const existingProduct = await this.productRepository.findOne({
         where: { sku: createProductDto.sku },
@@ -79,57 +75,73 @@ export class ProductService {
       // Create product
       const product = this.productRepository.create({
         ...createProductDto,
-        sellerId,
+        sellerId: user.role === 'SELLER' ? user.userId : createProductDto.sellerId,
+        isActive: true,
       });
 
       const savedProduct = await this.productRepository.save(product);
-
-      // Emit event
-      // await this.eventsService.emitProductCreated({
-      //   productId: savedProduct.id,
-      //   sellerId,
-      //   categoryId: savedProduct.categoryId,
-      //   name: savedProduct.name,
-      //   price: savedProduct.price,
-      //   sku: savedProduct.sku,
-      // });
-
       this.logger.log(`Product created successfully: ${savedProduct.name}`, {
         productId: savedProduct.id,
-        sellerId,
+        sellerId: product.sellerId,
         categoryId: savedProduct.categoryId,
         sku: savedProduct.sku,
       });
 
       return savedProduct;
     } catch (error) {
-     this.logger.error(`Product creation failed:`, error.message, {
-        sellerId,
-        sku: createProductDto.sku,
+      this.logger.error(`Product creation failed: ${error.message}`, {
+        // sellerId: user.userId,
+        // sku: createProductDto.sku,
         error: error.message,
       });
       throw error;
-    } finally {
-  
     }
   }
 
-
-  
   @MessagePattern({ cmd: 'products.list' })
-  async listProducts(data: { user: { userId: string; role: string } }) {
+  async listProducts(data: { user: { userId: string; role: string }; filter?: ProductFilterDto }) {
     try {
-      const { user } = data;
+      const { user, filter } = data;
       this.logger.log({ message: 'Listing products', userId: user.userId, role: user.role });
 
-      let query = this.productRepository.createQueryBuilder('product').where('product.isActive = :isActive', { isActive: true });
+      let query = this.productRepository
+        .createQueryBuilder('product')
+        .where('product.isActive = :isActive', { isActive: true });
 
       if (user.role === 'SELLER') {
         query = query.andWhere('product.sellerId = :sellerId', { sellerId: user.userId });
       }
 
-      const products = await query.getMany();
-      return products;
+      if (filter) {
+        if (filter.search) {
+          query = query.andWhere('product.name ILIKE :search OR product.description ILIKE :search', { search: `%${filter.search}%` });
+        }
+        if (filter.categoryId) {
+          query = query.andWhere('product.categoryId = :categoryId', { categoryId: filter.categoryId });
+        }
+        if (filter.minPrice) {
+          query = query.andWhere('product.price >= :minPrice', { minPrice: filter.minPrice });
+        }
+        if (filter.maxPrice) {
+          query = query.andWhere('product.price <= :maxPrice', { maxPrice: filter.maxPrice });
+        }
+        if (filter.sortBy) {
+          query = query.orderBy(`product.${filter.sortBy}`, filter.sortOrder || 'ASC');
+        }
+        if (filter.page && filter.limit) {
+          query = query.skip((filter.page - 1) * filter.limit).take(filter.limit);
+        }
+      }
+
+      const [products, total] = await query.getManyAndCount();
+      
+      return {
+        products,
+        total,
+        page: filter?.page || 1,
+        limit: filter?.limit || 10,
+        totalPages: Math.ceil(total / (filter?.limit || 10)),
+      };
     } catch (error) {
       this.logger.error({ message: 'Failed to list products', error: error.message, stack: error.stack });
       throw new HttpException('Failed to list products', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -153,7 +165,7 @@ export class ProductService {
 
       const product = await query.getOne();
       if (!product) {
-        throw new HttpException('Product not found', HttpStatus.NOT_FOUND);
+        throw new NotFoundException('Product not found or unauthorized');
       }
       return product;
     } catch (error) {
@@ -162,33 +174,8 @@ export class ProductService {
     }
   }
 
-  @MessagePattern({ cmd: 'products.create' })
-  async createProduct(data: { data: { sellerId: string; name: string; description: string; price: number; sku: string; categoryId: string }; user: { userId: string; role: string } }) {
-    try {
-      const { data: productData, user } = data;
-      this.logger.log({ message: 'Creating product', userId: user.userId, role: user.role });
-
-      if (user.role === 'SELLER' && user.userId) {
-        productData['sellerId'] = user.userId;
-      }
-
-      const product = this.productRepository.create({
-        ...productData,
-        isActive: true,
-        sellerId: user.role === 'SELLER' ? user.userId : productData.sellerId,
-      });
-
-      const savedProduct = await this.productRepository.save(product);
-      this.logger.log({ message: `Product created: ${savedProduct.id}`, userId: user.userId });
-      return savedProduct;
-    } catch (error) {
-      this.logger.error({ message: 'Failed to create product', error: error.message, stack: error.stack });
-      throw new HttpException('Failed to create product', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
   @MessagePattern({ cmd: 'products.update' })
-  async updateProduct(data: { id: string; data: { name?: string; description?: string; price?: number; sku?: string; categoryId?: string }; user: { userId: string; role: string } }) {
+  async updateProduct(data: { id: string; data: UpdateProductDto; user: { userId: string; role: string } }) {
     try {
       const { id, data: updateData, user } = data;
       this.logger.log({ message: `Updating product ${id}`, userId: user.userId, role: user.role });
@@ -204,7 +191,27 @@ export class ProductService {
 
       const product = await query.getOne();
       if (!product) {
-        throw new HttpException('Product not found or unauthorized', HttpStatus.NOT_FOUND);
+        throw new NotFoundException('Product not found or unauthorized');
+      }
+
+      // Validate category if provided
+      if (updateData.categoryId) {
+        const category = await this.categoryRepository.findOne({
+          where: { id: updateData.categoryId, isActive: true },
+        });
+        if (!category) {
+          throw new NotFoundException('Category not found');
+        }
+      }
+
+      // Check SKU uniqueness if provided
+      if (updateData.sku && updateData.sku !== product.sku) {
+        const existingProduct = await this.productRepository.findOne({
+          where: { sku: updateData.sku },
+        });
+        if (existingProduct) {
+          throw new ConflictException(`Product with SKU ${updateData.sku} already exists`);
+        }
       }
 
       await this.productRepository.update(id, updateData);
@@ -234,7 +241,7 @@ export class ProductService {
 
       const product = await query.getOne();
       if (!product) {
-        throw new HttpException('Product not found or unauthorized', HttpStatus.NOT_FOUND);
+        throw new NotFoundException('Product not found or unauthorized');
       }
 
       await this.productRepository.update(id, { isActive: false });

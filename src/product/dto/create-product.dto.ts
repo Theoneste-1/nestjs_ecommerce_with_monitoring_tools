@@ -93,4 +93,8 @@ export class CreateProductDto {
   @ValidateNested()
   @Type(() => DimensionsDto)
   dimensions?: DimensionsDto;
+
+  @ApiProperty({example:"Dddfjansdkfsda", description: "seller id"})
+  @IsString()
+  sellerId: string
 }

@@ -17,9 +17,9 @@ import { Counter, Histogram } from 'prom-client';
 
 import { User, UserRole } from './entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { EventsService } from '../events/events.service';
+import { LoginDto, RegisterDto } from './dto/auth.dto';
+
+// import { EventsService } from '../events/events.service';
 
 export interface JwtPayload {
   sub: string;
@@ -46,7 +46,7 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly eventsService: EventsService,
+    // private readonly eventsService: EventsService,
     @InjectMetric('auth_operations_total')
     private readonly authOperationsCounter: Counter<string>,
     @InjectMetric('auth_operation_duration_seconds')
@@ -67,12 +67,12 @@ export class AuthService {
       }
 
       // Hash password
-      const passwordHash = await bcrypt.hash(registerDto.password, 12);
+      const hashedPwd = await bcrypt.hash(registerDto.password, 12);
 
       // Create user
       const user = this.userRepository.create({
         email: registerDto.email,
-        passwordHash,
+        passwordHash:hashedPwd,
         role: registerDto.role || UserRole.CLIENT,
         firstName: registerDto.firstName,
         lastName: registerDto.lastName,
@@ -81,13 +81,13 @@ export class AuthService {
       const savedUser = await this.userRepository.save(user);
 
       // Emit user registered event
-      await this.eventsService.emitUserRegistered({
-        userId: savedUser.id,
-        email: savedUser.email,
-        role: savedUser.role,
-        firstName: savedUser.firstName,
-        lastName: savedUser.lastName,
-      });
+      // await this.eventsService.emitUserRegistered({
+      //   userId: savedUser.id,
+      //   email: savedUser.email,
+      //   role: savedUser.role,
+      //   firstName: savedUser.firstName,
+      //   lastName: savedUser.lastName,
+      // });
 
       this.authOperationsCounter.inc({ operation: 'register', status: 'success' });
       
@@ -135,12 +135,12 @@ export class AuthService {
       const tokens = await this.generateTokens(user);
 
       // Emit user logged in event
-      await this.eventsService.emitUserLoggedIn({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-        loginAt: new Date(),
-      });
+      // await this.eventsService.emitUserLoggedIn({
+      //   userId: user.id,
+      //   email: user.email,
+      //   role: user.role,
+      //   loginAt: new Date(),
+      // });
 
       this.authOperationsCounter.inc({ operation: 'login', status: 'success' });
       

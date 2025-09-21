@@ -15,11 +15,8 @@ import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from './entities/user.entity';
+import { LoginDto, RegisterDto } from './dto/auth.dto';
 
 export interface RequestWithUser extends Request {
   user: User;

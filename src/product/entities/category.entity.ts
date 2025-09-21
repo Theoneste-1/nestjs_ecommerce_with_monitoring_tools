@@ -9,6 +9,10 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  TreeChildren,
+  Tree,
+  TreeParent,
+  OneToMany,
 } from 'typeorm';
 import { Product } from './product.entity';
 
@@ -51,3 +55,5 @@ export class Category {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+
+

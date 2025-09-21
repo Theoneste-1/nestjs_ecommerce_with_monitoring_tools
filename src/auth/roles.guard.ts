@@ -23,12 +23,12 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers['authorization'];
 
-    let user = { userId: null, role: 'GUEST' };
+    let user;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        user = await this.appService.validateToken(token);
+        user  = await this.appService.validateToken(token) as { userId: string; role: string };
       } catch (error) {
         throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
       }
